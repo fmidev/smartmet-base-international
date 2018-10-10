@@ -1,7 +1,7 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        17.11.16
+Version:        18.10.10
 Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
@@ -31,6 +31,7 @@ Requires:	bc
 Requires:	bind-utils
 Requires:	bzip2
 Requires:	cronie
+Requires:       docker-ce
 Requires:	emacs-nox
 Requires:	fail2ban-firewalld
 Requires:	fail2ban-systemd
@@ -51,12 +52,13 @@ Requires:	perl
 Requires:	php
 Requires:	php-gd
 Requires:	policycoreutils-python
-Requires:	pptp
 Requires:	procmail
 Requires:	rsync
 Requires:	samba
 Requires:	samba-client
 Requires:	time
+Requires:	telnet
+Requires:	traceroute
 Requires:	vsftpd
 Requires:	wget
 Requires:	wgrib2
@@ -65,6 +67,7 @@ Requires:	zip
 Requires:	unzip
 Requires:	man
 Requires:	mlocate
+Requires:	whois
 
 %description
 The filesystem package is one of the basic packages that is installed
@@ -340,6 +343,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Wed Oct 10 2018 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.10-1.el7.fmi
+- added docker and traceroute
 * Thu Nov 16 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.11.16-1.el7.fmi
 - Fixed samba confs
 * Thu Jun 29 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.6.29-1.el7.fmi
