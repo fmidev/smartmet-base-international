@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        19.10.30
-Release:        1%{?dist}.fmi
+Release:        2%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -243,13 +243,12 @@ EOF
 
 # TODO robots.txt
 
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/mkcron %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/cleaner %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/run-triggers-quick %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/run-triggers-lazy %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/trigger %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/utcrun %{buildroot}%{smartmetroot}/bin/
-install -m 755 %{smartmetroot}/src/script/smartmet-unixtools/dropbox.py %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/mkcron %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/cleaner %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/run-triggers-quick %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/run-triggers-lazy %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/trigger %{buildroot}%{smartmetroot}/bin/
+install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/utcrun %{buildroot}%{smartmetroot}/bin/
 
 %post
 # Enable smartmet user to run sudo commands
@@ -355,6 +354,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.30-2.el7.fmi
+- add smartmet unixtools
 * Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.30-1.el7.fmi
 - add cift-utils, net-tools, certbot, se config for smartalert
 * Wed Oct 10 2018 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.10-1.el7.fmi
