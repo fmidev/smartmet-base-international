@@ -1,0 +1,701 @@
+#!/usr/bin/perl -w
+
+use Time::Local;
+
+# Siivoa annetun hakemiston vanhoista tiedostoista.
+#
+# Käyttö:
+#
+#  cleaner [optiot] <pattern> <hakemisto> [<hakemisto> ...]
+#
+# Optiot:
+#
+#	-maxmtime <n>		Maksimi modifiointiaika tunneissa (-1)
+#	-maxage <n>		Maksimi-ikä tunneissa (-1)
+#       -minfiles <n>           Säilytettävä uusien tiedostojen lkm
+#       -maxfiles <n>           Maksimi uusien tiedostojen lkm
+#	-dup			Samanaikaisista vanhat duplikaatit pois
+#	-verbose -v		Tulostaa tietoa tehdyistä operaatioista
+#	-debug			Ei oikeasti deletoida tiedostoja
+#	-norecurse		Ei rekursiota
+#	-stamppos <n>		Mones aikaleima on merkitsevd
+#	-shortstamp		Aikaleima on vain 10 merkkinen, normaalisti 12
+#	-utc			Aikaleimat ovat UTC-aikaa (default)
+#       -local			Aikaleimat ovat lokaaliajassa
+
+# Options
+
+$maxmtime = -1;		# Maximum allowed modification time age
+$maxage = -1;		# Maximum allowed timestamp age
+$minfiles = -1;		# Number of files to keep in a dir regardless of other options
+$maxfiles = -1;		# Maximum number of files to leave in a directory
+$debug = 0;		# Just show what would be done
+$verbose = 0;		# Silent mode
+$dup = 0;		# Don't delete duplicates
+$recurse = 1;		# Recurse into subdirectories
+$stamppos = 0;		# No position specified!
+$utc = 1;		# UTC timestamps!
+$logunlink = 0;         # Log unlink calls
+$shortstamp = 0;	# By default we have long timestamps
+
+# Parse options
+
+while($#ARGV>=0 && substr($ARGV[0],0,1) eq '-')
+{
+    $arg = shift(@ARGV);
+    if($arg eq '-debug')
+    {
+	$debug=1;
+	$verbose=1;
+    }
+    elsif( ($arg eq '-verbose') or ($arg eq '-v') )
+    {
+	$verbose=1;
+    }
+    elsif($arg eq '-maxmtime')
+    {
+	die "Argument for -maxamtime is missing\n" if($#ARGV<0);
+	$maxmtime = shift(@ARGV);
+    }
+    elsif($arg eq '-maxage')
+    {
+	die "Argument for -maxage is missing\n" if($#ARGV<0);
+	$maxage = shift(@ARGV);
+    }
+    elsif($arg eq '-maxfiles')
+    {
+	die "Argument for -maxfiles is missing\n" if($#ARGV<0);
+	$maxfiles = shift(@ARGV);
+    }
+    elsif($arg eq '-minfiles')
+    {
+	die "Argument for -minfiles is missing\n" if($#ARGV<0);
+	$minfiles = shift(@ARGV);
+    }
+    elsif($arg eq '-stamppos')
+    {
+	die "Argument for -stamppos is missing\n" if($#ARGV<0);
+	$stamppos = shift(@ARGV);
+    }
+    elsif($arg eq '-dup')
+    {
+	$dup = 1;
+    }
+    elsif($arg eq '-utc')
+    {
+	$utc = 1;
+    }
+    elsif($arg eq '-local')
+    {
+	$utc = 0;
+    }
+    elsif($arg eq '-norecurse')
+    {
+	$recurse = 0;
+    }
+    elsif($arg eq '-shortstamp')
+    {
+	$shortstamp = 1;
+    }
+    else
+    {
+	die "Unknown option: $arg\n";
+    }
+}
+
+# Compulsory arguments
+
+if(scalar(@ARGV)<2)
+{
+    die "Usage: cleaner {options} [pattern] [dir] {[dir] [dir]...}\n";
+}
+
+$pattern = shift @ARGV;
+@dirs = @ARGV;
+
+while(scalar(@dirs) > 0)
+{
+    # Swap a random element with the first element
+    $pos = int rand(scalar(@dirs));
+    if($pos > 0)
+    {
+	$tmp = $dirs[$pos];
+	$dirs[$pos] = $dirs[0];
+	$dirs[0] = $tmp;
+    }
+
+    # Then pick the next one
+    $dir = shift(@dirs);
+
+    if($verbose)
+    { print "--> $dir\n"; }
+
+    if(! -e $dir)
+    {
+	die "Error: directory '$dir' does not exist\n";
+    }
+
+    # Collect all the files in the directory
+
+    @files = ();
+
+    opendir(DIR,$dir);
+    while(defined($file=readdir(DIR)))
+    {
+	next if($file eq ".");
+	next if($file eq "..");
+	next if($file eq ".dev");
+
+	next if(!(-w "$dir/$file"));	# not writable - do nothing to it!
+
+	if(-d "$dir/$file")
+	{
+	    push @dirs,"$dir/$file" if($recurse);
+	}
+	else
+	{
+	    if($file =~ m/$pattern/i)
+	    { push @files,$file; }
+	}
+    }
+    closedir(DIR);
+
+    # Keep N newest files regardless of what
+
+    ($nkept,@files) = KeepMinNewest($debug,$dir,$minfiles,@files);
+    print "Kept $nkept newest files\n" if($verbose);
+
+    # Delete too old files based on modification time
+
+    ($ndeleted,@files) = DeleteOld($debug,$dir,$maxmtime,@files);
+    print "Deleted $ndeleted old files based on modification time\n" if($verbose);
+
+    # Delete too old files based on timestamp
+
+    ($ndeleted,@files) = DeleteAge($debug,$dir,$maxage,@files);
+    print "Deleted $ndeleted old files based on timestamp\n" if($verbose);
+
+    # Delete oldest files from files with equal timestamps
+
+    ($ndeleted,@files) = DeleteDup($debug,$dir,@files) if($dup);
+    print "Deleted $ndeleted old files based on duplicate timestamps\n" if($verbose);
+
+    # And finally keep only the given maximum number of fiels
+
+    ($ndeleted,@files) = KeepMaxNewest($debug,$dir,$maxfiles,@files);
+    print "Deleted $ndeleted old files to satisfy -maxfiles option\n" if($verbose);
+
+}
+	
+# ----------------------------------------------------------------------
+# Extract time stamp from a filename, or "" if not found
+# ----------------------------------------------------------------------
+
+sub FindStamp
+{
+    my($filename) = @_;
+    my($stampsize) = ($shortstamp ? 10 : 12);
+
+    # Find all possible occurrances
+
+    @okmatches = ();
+    @matches = $filename =~ /(?=(\d{$stampsize}))/g;
+
+    foreach $match(@matches)
+    {
+	# Individual time components
+
+	$yy = substr($match,0,4);
+	$mm = substr($match,4,2);
+	$dd = substr($match,6,2);
+	$hh = substr($match,8,2);
+	$mi = ($shortstamp ? "00" : substr($match,10,2));
+
+	# Check proper ranges
+
+	next if( ($yy<1900) || ($yy>2100) );
+	next if( ($mm<1) || ($mm>12) );
+	next if( ($dd<1) || ($dd>31) );
+	next if( ($hh<0) || ($hh>23) );
+	next if( ($mi<0) || ($mi>59) );
+
+	# Accept as valid time stamp
+
+	push @okmatches,"$yy$mm$dd$hh$mi";
+
+    }
+
+    # If stamppos was specified, we must satisfy that requirement
+
+    if($stamppos == 0)
+    {
+	$out = (scalar(@okmatches)>0 ? $okmatches[0] : "");
+    }
+    else
+    {
+	if($stamppos>0 && $stamppos<=scalar(@okmatches))
+	{ $out = $okmatches[$stamppos-1]; }
+	else
+	{ $out = ""; }
+    }
+
+    return $out;
+}
+
+# ----------------------------------------------------------------------
+# Remove the numbers from the filename
+# ----------------------------------------------------------------------
+
+sub RemoveNumbers
+{
+    my($filename) = @_;
+    my($out);
+
+    ($out = $filename) =~ s/\d//g;
+    return $out;
+}
+
+# ----------------------------------------------------------------------
+# Remove the N newest files from the given list. This effectively
+# prevents the files from being deleted later on
+# ----------------------------------------------------------------------
+
+sub KeepMinNewest
+{
+    my($debug,$indir,$limit,@infiles) = @_;
+
+    # Quick exit if no limit has been set
+
+    return (0,@infiles) if($limit < 1);
+
+    # Quick exit if everything must be kept
+
+    return (scalar(@infiles),()) if(scalar(@infiles)<=$limit);
+
+    # We make a new list of files, which is sortable based on the file age
+
+    my(@dofiles,$f);
+    @dofiles = ();
+    foreach $f(@infiles)
+    {
+	my $mtime = (stat("$indir/$f"))[9];
+	push @dofiles,"$mtime,$f";
+    }
+
+    @dofiles = sort { $a cmp $b } @dofiles;
+
+    # Remove the files to be kept
+
+    splice(@dofiles,-$limit);
+
+    # And remove the timestamps
+
+    my @retfiles = ();
+
+    foreach $f(@dofiles)
+    {
+	my($a,$b) = split(",",$f,2);
+	push @retfiles,$b;
+    }
+
+    return (scalar(@infiles)-scalar(@retfiles),@retfiles);
+
+}
+
+# ----------------------------------------------------------------------
+# Delete all but N newest files from the given list
+# ----------------------------------------------------------------------
+
+sub KeepMaxNewest
+{
+    my($debug,$indir,$limit,@infiles) = @_;
+
+    # Quick exit if no limit has been set
+
+    return (0,@infiles) if($limit < 1);
+
+    # Quick exit if everything must be kept
+
+    return (scalar(@infiles),()) if(scalar(@infiles)<=$limit);
+
+    # We make a new list of files, which is sortable based on the file age
+
+    my(@dofiles,$f);
+    @dofiles = ();
+    foreach $f(@infiles)
+    {
+	my $mtime = (stat("$indir/$f"))[9];
+	push @dofiles,"$mtime,$f";
+    }
+
+    @dofiles = sort { $a cmp $b } @dofiles;
+
+    # Split the list into two parts, files to keep and files to delete
+
+    my @delfiles = @dofiles;
+    my @keepfiles = @dofiles;
+
+    splice(@delfiles,-$limit);
+    splice(@keepfiles,0,-$limit);
+
+    my $n = scalar(@delfiles);
+
+    # Delete the files to be ignored
+
+    foreach $f(@delfiles)
+    {
+	my($a,$b) = split(",",$f,2);
+
+	if($debug==0 && -e "$indir/$b")
+	{
+	    $count = unlink("$indir/$b");
+	    if($count !=1)
+	    {
+		logerror("Unlink failed: $indir/$b");
+		$n--;
+	    }
+	    else
+	    {
+		logunlink("unlink (KeepMaxNewest)", "$indir/$b") if ($logunlink);
+	    }
+	}
+	if($verbose)
+	{
+	    print "Beyond max number: $f\n";
+	}
+	
+    }
+
+    # And remove the timestamps
+
+    my @retfiles = ();
+
+    foreach $f(@keepfiles)
+    {
+	my($a,$b) = split(",",$f,2);
+	push @retfiles,$b;
+    }
+
+    return ($n,@retfiles);
+
+}
+
+# ----------------------------------------------------------------------
+# Subroutine to delete old files
+# ----------------------------------------------------------------------
+
+sub DeleteOld
+{
+    my($debug,$indir,$limit,@infiles) = @_;
+
+    my($n,@outfiles,@delfiles,$f);
+    my($curdate,$min,$hour,$day,$month,$year);
+
+    # Quick return for negative timelimit
+
+    return (0,@infiles) if($limit<=0);
+
+    $n=0;
+    @outfiles = ();
+    @delfiles = ();
+
+    # Establish current time
+
+    $now = time();
+
+    # Delete old files
+    
+    foreach $f(@infiles)
+    {
+	$mtime = (stat("$dir/$f"))[9];
+	if( $now-$mtime > 60*60*$limit)
+	{
+	    push @delfiles,$f;
+	}
+	else
+	{
+	    push @outfiles,$f;
+	}
+    }
+
+    # Number of files to delete
+
+    foreach $f(@delfiles)
+    {
+	$n++;
+	if($debug==0 && -e "$indir/$f")
+	{
+	    $count = unlink("$indir/$f");
+	    if($count !=1)
+	    {
+		logerror("Unlink failed: $indir/$f");
+		$n--;
+	    }
+	    else
+	    {
+		logunlink("unlink (DeleteOld)", "$indir/$f") if ($logunlink);
+	    }
+	}
+	if($verbose)
+	{
+	    print "Old: $indir/$f\n";
+	}
+    }
+
+    return($n,@outfiles);
+    
+}
+
+# ----------------------------------------------------------------------
+# Subroutine to delete old files
+# ----------------------------------------------------------------------
+
+sub DeleteAge
+{
+    my($debug,$indir,$limit,@infiles) = @_;
+
+    my($n,@outfiles,@delfiles,$f);
+    my($curdate,$min,$hour,$day,$month,$year);
+
+    # Quick return for negative timelimit
+
+    return (0,@infiles) if($limit<=0);
+
+    $n=0;
+    @outfiles = ();
+    @delfiles = ();
+
+    # Establish current time in YYYYMMDDHHMI format
+
+    if($utc)
+    { ($min,$hour,$day,$month,$year) = (gmtime)[1,2,3,4,5]; }
+    else
+    { ($min,$hour,$day,$month,$year) = (localtime)[1,2,3,4,5]; }
+    $curdate = sprintf "%4.4d%2.2d%2.2d%2.2d%2.2d", $year+1900,$month+1,$day,$hour,$min;
+
+    # Delete old files
+    
+    foreach $f(@infiles)
+    {
+	$stamp = FindStamp($f);
+	if($stamp eq "")
+	{
+	    push @outfiles,$f;
+	}
+	else
+	{
+	    $mindiff = datediff($curdate,$stamp);
+	    if($mindiff > 60*$limit)		# minutes agains hours
+	    {
+		push @delfiles,$f;
+	    }
+	    else
+	    {
+		push @outfiles,$f;
+	    }
+	}
+    }
+
+    # Number of files to delete
+
+    foreach $f(@delfiles)
+    {
+	$n++;
+	if($debug==0 && -e "$indir/$f")
+	{
+	    $count = unlink("$indir/$f");
+	    if($count !=1)
+	    {
+		logerror("Unlink failed: $indir/$f");
+		$n--;
+	    }
+	    else
+	    {
+		logunlink("unlink (DeleteAge)", "$indir/$f") if ($logunlink);
+	    }
+	}
+	if($verbose)
+	{
+	    print "Age: $indir/$f\n";
+	}
+    }
+
+    return($n,@outfiles);
+    
+}
+
+# ----------------------------------------------------------------------
+# Delete duplicate files
+# ----------------------------------------------------------------------
+
+sub DeleteDup
+{
+    my($debug,$indir,@infiles) = @_;
+
+    my($n,@outfiles,@delfiles,@dofiles);
+    my($i,$j,$cont,$f1,$f2,$mtime1,$mtime2);
+    my($ascii1,$stamp1,$ascii2,$stamp2);
+    my($blah);
+
+    $n = 0;
+    @outfiles = ();
+    @delfiles = ();
+
+    # We sort the files first based on the nonnumeric part of the name
+    # to segment the files into groups, then by timestamp
+
+    @dofiles = ();
+    foreach $f(@infiles)
+    {
+	$stamp = FindStamp($f);
+	$nostamp = RemoveNumbers($f,$stamp);
+
+	if($stamp eq "")
+	{ push @outfiles,$f; }
+	else
+	{ push @dofiles,"$nostamp,$stamp,$f"; }
+    }
+
+    # Sort the list
+
+    @dofiles = sort { $a cmp $b } @dofiles;
+
+    # Now make a list of files to delete
+
+    $i = 0;
+
+    while($i < $#dofiles)
+    {
+	$j=$i;
+	$cont=1;
+	while($cont)
+	{
+	    $cont=0;
+	    if($j+1 <= $#dofiles)
+	    {
+		($ascii1,$stamp1,$f1) = split(",",$dofiles[$i],3);
+		($ascii2,$stamp2,$f2) = split(",",$dofiles[$j+1],3);
+		if("$ascii1 $stamp1" eq "$ascii2 $stamp2")
+		{
+		    $cont=1;
+		    $j=$j+1;
+		    
+		    $mtime1 = (stat("$indir/$f1"))[9]; # 9 = modification time
+		    $mtime2 = (stat("$indir/$f2"))[9];
+
+		    # Must protect against a simultaneous cleaner
+		    if(!defined($mtime1) || !defined($mtime2))
+		    {
+			$cont = 0;
+		    }
+		    elsif($mtime2 > $mtime1)
+		    {
+			# j is newer, keep it for now, i is to be deleted
+			$i=$j;
+			push @delfiles,$f1;
+		    }
+		    else
+		    {
+			# i is newer, keep it and delete j
+			push @delfiles,$f2;
+		    }
+		}
+	    }
+	}
+	
+	# Keep the newest file
+
+	($blah,$stamp,$f) = split(",",$dofiles[$i],3);
+	push @outfiles, $f;
+
+	$i = $j+1;
+    }
+
+    # And finally delete the old ones
+
+    foreach $f(@delfiles)
+    {
+	$n++;
+	if($debug==0 && -e "$indir/$f")
+	{
+	    $count = unlink("$indir/$f");
+	    if($count !=1)
+	    {
+		logerror("Unlink failed: $indir/$f");
+		$n--;
+	    }
+	    else
+	    {
+		logunlink("unlink (DeleteDup)", "$indir/$f") if ($logunlink);
+	    }
+	}
+	if($verbose)
+	{
+	    print "Dup: $indir/$f\n";
+	}
+    }
+
+    return($n,@outfiles);
+}
+
+# ----------------------------------------------------------------------
+# Difference of 2 yyyymmddhhmi dates in minutes (date1-date2)
+# ----------------------------------------------------------------------
+
+sub datediff
+{
+    my($date1,$date2) = @_;
+    ($yy1,$mm1,$dd1,$hh1,$mi1) = splitdate($date1);
+    ($yy2,$mm2,$dd2,$hh2,$mi2) = splitdate($date2);
+
+    # Note: Month from 0 to 11
+
+    $sec1 = timelocal(0,$mi1,$hh1,$dd1,$mm1-1,$yy1-1900);
+    $sec2 = timelocal(0,$mi2,$hh2,$dd2,$mm2-1,$yy2-1900);
+    $sdif = $sec1-$sec2;
+
+    return $sdif/60;
+}
+
+sub splitdate
+{
+    my($d) = @_;
+    my @blah;
+    push @blah,substr($d,0,4);
+    push @blah,substr($d,4,2);
+    push @blah,substr($d,6,2);
+    push @blah,substr($d,8,2);
+    push @blah,substr($d,10,2);
+    @blah;
+}
+
+# ----------------------------------------------------------------------
+# Register a normal LOG message
+# ----------------------------------------------------------------------
+
+sub logunlink
+{
+    my($msg1, $msg2) = @_;
+    $now = time();
+
+    open(FH, ">> /smartmet/data/logs/cleaner.log") 
+       or die $!;
+    print FH localtime($now)." ".$msg1." ".$msg2."\n";
+    close(FH);
+
+}
+
+# ----------------------------------------------------------------------
+# Register a failure message
+# ----------------------------------------------------------------------
+
+sub logerror
+{
+    my($msg) = @_;
+    $now = time();
+
+    open(FH, ">> /smartmet/data/logs/claner-error.log") 
+       or die $!;
+    print FH localtime($now)." ".$msg."\n";
+    close(FH);
+}

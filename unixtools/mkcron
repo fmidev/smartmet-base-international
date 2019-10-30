@@ -1,0 +1,32 @@
+#!/bin/sh
+SMARTCRONDIR=/smartmet/cnf/cron/cron.d
+SYSCRONDIR=/etc/cron.d
+
+CRONPATH=/usr/bin:/bin:/usr/local/bin:/usr/X11R6/bin:/smartmet/bin
+
+# Check cron jobs from /smartmet/cnf/cron/cron.d and run them as smartmet user
+cd $SMARTCRONDIR
+for FILE in `ls -1| grep -v '~' | grep -v '#'|grep -v CVS`
+do
+	if [ $SMARTCRONDIR/$FILE -nt $SYSCRONDIR/smart-$FILE ] ;
+	then
+		echo "# Edit file $SMARTCRONDIR/$FILE" > $SYSCRONDIR/smart-$FILE
+		echo "PATH=$CRONPATH" >> $SYSCRONDIR/smart-$FILE
+		grep -v '#' $FILE | awk '{if(NF>5){ORS=" ";for(i=1;i<6;++i)print $i;print "smartmet";for(i=6;i<=NF;++i)print $i;print "\n"}}' >> $SYSCRONDIR/smart-$FILE
+		touch $SYSCRONDIR
+		# Restart the cron so that the modifications are valid
+		/etc/init.d/crond restart
+	fi
+done
+
+
+# Remove jobs that are no more in /smartmet/cnf/cron/cron.d
+cd $SYSCRONDIR
+for FILE in `ls -1 |grep smart-|cut -d- -f2-`
+do
+	if [ ! -f $SMARTCRONDIR/$FILE ] ;
+	then
+		rm -f smart-$FILE
+	fi
+
+done

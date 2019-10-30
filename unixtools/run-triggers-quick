@@ -1,0 +1,54 @@
+#!/bin/sh
+
+STARTTIME=`date`
+
+TRIGGERDIR=/smartmet/cnf/triggers.d/quick
+TRIGGER=/smartmet/bin/trigger
+LOGDIR=/smartmet/logs/triggers
+OUTDIR=/smartmet/logs/triggers/output
+
+LOCKDIR=/tmp/run-triggers
+LOCKFILE=$LOCKDIR/run-triggers-quick.lock
+
+umask 002
+
+######################################################################
+# Lock triggering at least for three minutes
+######################################################################
+
+mkdir -p $LOCKDIR
+
+lockfile -r0 -l 900 $LOCKFILE
+if [[ $? != 0 ]]; then
+  echo `date` previous run-triggers-quick still running >> $LOGDIR/LOCK.LOG
+  exit 0
+fi
+
+###########################################################################
+# Start triggering process on background
+###########################################################################
+function run_trigger () {
+	TLOCKFILE="$1" 
+	TRIGFILE="$2"
+	CMD="$TRIGGERDIR/$1"
+
+	# Execute the process with parameters on background
+	$TRIGGER -verbose $TRIGFILE $TLOCKFILE "$CMD" > $OUTDIR/$1 2>&1 &
+}
+
+
+# Check trigger.d directory and start following processes
+cd $TRIGGERDIR
+for FILE in `ls -1| grep : | grep -v '~' | grep -v '#'`
+do
+	DIR=/`echo $FILE | tr : /`
+	run_trigger $FILE $DIR
+	sleep 0.1
+done
+
+# Remove locks
+rm -f $LOCKFILE
+
+ENDTIME=`date`
+
+echo "$STARTTIME ... $ENDTIME" >> $LOGDIR/QUICK.LOG

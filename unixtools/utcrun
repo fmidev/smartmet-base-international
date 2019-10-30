@@ -1,0 +1,10 @@
+#!/bin/sh
+
+WANTEDHOUR=$1
+UTCHOUR=$(date -u +%k)
+shift
+
+if [[ $WANTEDHOUR -eq $UTCHOUR ]]
+then
+  $*
+fi

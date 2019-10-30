@@ -1,0 +1,210 @@
+#!/usr/bin/perl
+
+use File::Find;
+
+# Usage:
+#
+#  trigger [options] <thefile> <thelock> <command>
+#
+# For example,
+#
+# trigger /var/www/share/querydata/tutka_paakaupunki.sqd \
+#         tutka_paakaupunki_weatherproof \
+#         'qdcontour /usr/local/.../weatherproof/dbz_uusimaa.conf'
+#
+# Options:
+#
+#   -delay <integer>
+#
+#          Delays triggering by the given number of seconds.
+#
+#   -debug
+#
+#	   Debugging mode
+#
+#   -verbose
+#
+#	   Verbose mode
+#
+# Note that we ignore *.tmp files when triggerin. The idea is
+# to prevent an ongoing rsync from triggering anything. The
+# solution is to simply check the name of the latest file.
+# If it ends in .tmp, we do NOT update the trigger time
+# status in any way.
+#
+# Read the options
+
+# By default we force a 15 second delay from the newest file to
+# starting the process. This should prevent triggering while
+# for example a multiple-file rcp is still in progress. The
+# number may be increased with the -delay option for example
+# when the copying may be slow due to the size of the files
+# or unusual network traffic.
+
+$DELAY = 15;
+$DEBUG = 0;
+$VERBOSE = 0;
+
+while(substr(@ARGV[0],0,1) eq '-')
+{
+    $arg = shift @ARGV;
+    if($arg eq '-delay')
+    { $DELAY = shift @ARGV; }
+    elsif($arg eq '-debug')
+    { $DEBUG = 1; $VERBOSE = 1; }
+    elsif($arg eq '-verbose')
+    { $VERBOSE = 1; }
+    else
+    { die "Unknown option: $arg\n"; }
+}
+
+# We must always have 3 arguments
+if(scalar(@ARGV) != 3)
+{
+    die "Usage: trigger <file> <lock> <command>";
+}
+
+$INFILE = shift @ARGV;
+$TRIGGER = shift @ARGV;
+$COMMAND = shift @ARGV;
+
+# Make sure that directories exist
+system("mkdir -p /smartmet/logs/triggers/output");
+system("mkdir -p /smartmet/logs/triggers/checks");
+
+$OUTFILE = "/smartmet/logs/triggers/$TRIGGER";
+$OUTPUTFILE = "/smartmet/logs/triggers/output/$TRIGGER";
+$CHECKFILE = "/smartmet/logs/triggers/checks/$TRIGGER";
+
+# If the status file is newer than the trigger file, we do nothing.
+#
+# Special cases:
+#
+#    trigger is missing		==> do nothing
+#    status file is missing	==> create it and execute command
+#    trigger is symbolic link	==> test with -nt as usual, works
+#    trigger is a directory     ==> test against newest file in directory
+
+# Touch a separate status file to indicate time of last check
+
+$check_exists = (-e $CHECKFILE);
+$stat = $check_exists ? (stat($CHECKFILE))[9] : 0 ;
+
+# If the trigger file does not exist, do nothing
+
+exit(0) if(! -e $INFILE);
+
+# Establish the triggering file - if any
+
+my $mtime;
+my $youngestfile = "";
+
+if(-f $INFILE)
+{ $mtime = (stat($INFILE))[9];}
+elsif(-l $INFILE)
+{ $mtime = (stat($INFILE))[9];}
+elsif(-d $INFILE)
+{
+    # An optimization: If the modification time of
+    # the directory is before the trigger modification
+    # time, there cannot be a newer file in the directory
+    # and we can abort already. This of course does not
+    # account for subdirectories and using the touch command,
+    # but we can reasonably require trigger directories
+    # to be flat and touch not to be used to manipulate
+    # modification times. This can be disabled by placing
+    # .triggerall file in the directory
+
+    if(! -e "$INFILE/.triggerall")
+    {
+	my $dirtime = (stat($INFILE))[9];
+	if($dirtime < $stat)
+	{
+	    print "Modification time of directory is older than trigger\n" if($VERBOSE);
+	    print "$dirtime - $stat = " . ($dirtime-$stat) . "\n" if($VERBOSE);
+	    exit(0);
+	}
+    }
+    else
+    {
+	# Make sure the file does not age
+	print "Touched .triggerall to preserve it\n" if($VERBOSE);
+	system("touch $INFILE/.triggerall");
+    }
+    find(\&youngest,$INFILE);
+    exit(0) if(!defined($mtime));
+}
+else
+{ die "Unknown trigger type!\n"; }
+
+# This seems to work for symbolic links too.
+
+# Exit if trigger indicator exists and latest modified file is
+# older than trigger indicator
+
+if($mtime < $stat)
+{
+    print "Modification time is older than trigger\n" if($VERBOSE);
+    print "$mtime - $stat = " . ($mtime-$stat) . "\n" if($VERBOSE);
+    exit(0);
+}
+
+# An extra condition is that the modification time must be old enough
+
+$now = time();
+print "mtime: $mtime\n";
+print "now: $now\n";
+if($now-$mtime < $DELAY)
+{
+    print "Modification time is too new!\n" if($VERBOSE);
+    print "Age " . ($now-$mtime) . " < $DELAY, the required delay\n" if($VERBOSE);
+    exit(0);
+}
+
+# Now we would otherwise trigger, but first we check if the
+# newest file is an rsync file. Note that we MUST NOT
+# touch $CHECKFILE to ensure the trigger works right
+# in the next run.
+
+if(substr($youngestfile,-4) eq ".tmp")
+{
+    print "Youngest file is $youngestfile\n" if($VERBOSE);
+    print "Preventing triggering due to rsync\n" if($VERBOSE);
+    exit(0);
+}
+ 
+#Otherwise we must trigger
+
+my $date = `date`;
+chomp($date);
+
+if($DEBUG)
+{
+    print("$COMMAND\n");
+    print("echo $date - `date`  >> $OUTFILE\n");
+}
+else
+{
+    print "Running $COMMAND\n" if($VERBOSE);
+    system("touch $CHECKFILE");
+    my $exitcode = system("$COMMAND > $OUTPUTFILE 2>&1");
+    if($exitcode == 0)
+    {
+	system("echo $date - `date`  >> $OUTFILE\n");
+    }
+    else
+    {
+	system("echo $date - `date` ERROR: $exitcode >> $OUTFILE\n");
+    }
+}
+
+# Utility subroutine for find()
+
+sub youngest
+{
+    return if(substr($_,0,1) eq ".");
+    my $thismtime = (stat($_))[9];
+    return if(defined $mtime && $mtime > $thismtime);
+    $youngestfile = $_;
+    $mtime = $thismtime;
+}
