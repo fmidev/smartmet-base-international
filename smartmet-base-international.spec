@@ -1,7 +1,7 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        18.10.10
+Version:        19.10.30
 Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
@@ -68,6 +68,11 @@ Requires:	unzip
 Requires:	man
 Requires:	mlocate
 Requires:	whois
+Requires:       yum-cron
+Requires:       net-tools
+Requires:       cifs-utils
+Requires:       certbot python2-certbot-apache
+
 
 %description
 The filesystem package is one of the basic packages that is installed
@@ -99,7 +104,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/samba
 mkdir -p %{buildroot}%{_sysconfdir}/fail2ban/action.d
 mkdir -p .%{smartmetroot}/cnf/cron/{cron.d,cron.10min,cron.hourly,cron.daily,cron.weekly,cron.monthly}
 mkdir -p .%{smartmetroot}/cnf/triggers.d/{quick,lazy}
-mkdir -p .%{smartmetroot}/editor/{in,out,sat}
+mkdir -p .%{smartmetroot}/editor/{in,out,sat,smartalert}
 mkdir -p .%{smartmetroot}/{bin,data,products,run,share,tmp,www,logs}
 mkdir -p .%{smartmetroot}/logs/data
 mkdir -p .%{smartmetroot}/logs/triggers/output
@@ -275,8 +280,10 @@ systemctl start ntpd
 
 # Enable httpd
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/www(/.*)?"
+semanage fcontext --add --type httpd_sys_content_t "/smartmet/editor/smartalert(/.*)?"
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd.conf"
-restorecon -Rv /smartmet/www /smartmet/cnf/httpd.conf
+restorecon -Rv /smartmet/www /smartmet/editor/smartalert /smartmet/cnf/httpd.conf
+setsebool -P httpd_can_network_relay on
 systemctl enable httpd
 systemctl start httpd
 firewall-cmd --permanent --add-service=http
@@ -292,6 +299,10 @@ setsebool -P samba_export_all_rw=1
 systemctl enable rsyncd
 systemctl start rsyncd
 
+# Enable yum-cron
+systemctl enable yum-cron
+systemctl start yum-cron
+
 # Enable vsftpd
 systemctl enable vsftpd 
 systemctl start vsftpd
@@ -299,6 +310,7 @@ firewall-cmd --permanent --zone=public --add-service=ftp
 
 # Enable access from FMI
 firewall-cmd --permanent --zone=public --add-source=193.166.207.129
+firewall-cmd --permanent --zone=public --add-source=193.166.223.108
 
 # Reload firewalld
 firewall-cmd --reload
@@ -343,6 +355,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.30-1.el7.fmi
+- add cift-utils, net-tools, certbot, se config for smartalert
 * Wed Oct 10 2018 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.10-1.el7.fmi
 - added docker and traceroute
 * Thu Nov 16 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.11.16-1.el7.fmi
@@ -351,7 +365,7 @@ rm -rf $RPM_BUILD_ROOT
 - Added samba confs
 * Wed Jun 28 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.6.28-1.el7.fmi
 - Changed %post to enable services
-* Tue Jan 26 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.1.17-1.el7.fmi
+* Tue Jan 17 2017 Mikko Rauhala <mikko.rauhala@fmi.fi> 17.1.17-1.el7.fmi
 - Changed requirements to correspond with current package naming
 * Fri Aug 26 2016 Mikko Rauhala <mikko.rauhala@fmi.fi> 16.8.26-1.el7.fmi
 - Removed postgresql requirement
