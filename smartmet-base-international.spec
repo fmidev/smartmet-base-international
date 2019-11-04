@@ -1,8 +1,8 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        19.10.30
-Release:        2%{?dist}.fmi
+Version:        19.11.4
+Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -72,7 +72,7 @@ Requires:       yum-cron
 Requires:       net-tools
 Requires:       cifs-utils
 Requires:       certbot python2-certbot-apache
-
+Requires:       nodejs
 
 %description
 The filesystem package is one of the basic packages that is installed
@@ -104,7 +104,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/samba
 mkdir -p %{buildroot}%{_sysconfdir}/fail2ban/action.d
 mkdir -p .%{smartmetroot}/cnf/cron/{cron.d,cron.10min,cron.hourly,cron.daily,cron.weekly,cron.monthly}
 mkdir -p .%{smartmetroot}/cnf/triggers.d/{quick,lazy}
-mkdir -p .%{smartmetroot}/editor/{in,out,sat,smartalert}
+mkdir -p .%{smartmetroot}/editor/{in,out,satellite,smartalert}
 mkdir -p .%{smartmetroot}/{bin,data,products,run,share,tmp,www,logs}
 mkdir -p .%{smartmetroot}/logs/data
 mkdir -p .%{smartmetroot}/logs/triggers/output
@@ -115,6 +115,7 @@ mkdir -p .%{smartmetroot}/tmp/{data,www}
 mkdir -p .%{smartmetroot}/share/{maps,fonts,coordinates}
 mkdir -p .%{smartmetroot}/share/gis/shapes
 mkdir -p .%{smartmetroot}/cnf/misc
+mkdir -p .%{smartmetroot}/cnf/httpd/conf.d
 
 cat > %{buildroot}%{_sysconfdir}/profile.d/smartmet.sh <<EOF
 PATH=\$PATH:/smartmet/bin
@@ -144,6 +145,7 @@ EOF
 
 cat > %{buildroot}%{_sysconfdir}/httpd/conf.d/smartmet.conf <<EOF
 Include /smartmet/cnf/httpd.conf
+IncludeOptional /smartmet/cnf/httpd/conf.d/*.conf
 EOF
 
 cat > %{buildroot}%{_sysconfdir}/ppp/chap-secrets.fmi << EOF
@@ -281,7 +283,8 @@ systemctl start ntpd
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/www(/.*)?"
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/editor/smartalert(/.*)?"
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd.conf"
-restorecon -Rv /smartmet/www /smartmet/editor/smartalert /smartmet/cnf/httpd.conf
+semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd/conf.d"
+restorecon -Rv /smartmet/www /smartmet/editor/smartalert /smartmet/cnf/httpd.conf /smartmet/cnf/httpd/conf.d
 setsebool -P httpd_can_network_relay on
 systemctl enable httpd
 systemctl start httpd
@@ -354,9 +357,11 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
-* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.30-2.el7.fmi
+* Mon Nov 4 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.11.4-1.el7.fmi
+- add nodejs
+* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.10.30-2.el7.fmi
 - add smartmet unixtools
-* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.30-1.el7.fmi
+* Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.10.30-1.el7.fmi
 - add cift-utils, net-tools, certbot, se config for smartalert
 * Wed Oct 10 2018 Mikko Rauhala <mikko.rauhala@fmi.fi> 18.10.10-1.el7.fmi
 - added docker and traceroute
