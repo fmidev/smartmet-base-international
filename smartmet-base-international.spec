@@ -33,6 +33,7 @@ Requires:	bzip2
 Requires:	cronie
 Requires:       docker-ce
 Requires:	emacs-nox
+Requires:	epel-release
 Requires:	fail2ban-firewalld
 Requires:	fail2ban-systemd
 Requires:	ftp
