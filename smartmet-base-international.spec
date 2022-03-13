@@ -18,7 +18,7 @@ Requires:	smartmet-shapetools
 #Requires:	smartmet-data-meteor
 #Requires:	smartmet-data-synop
 #Requires:	smartmet-data-sounding
-Requires:	smartmet-share-php
+#Requires:	smartmet-share-php
 #Requires:	smartmet-data-metar
 #Requires:	smartmet-data-gfs
 #Requires:	smartmet-data-gem
@@ -76,6 +76,8 @@ Requires:	whois
 Requires:       net-tools
 Requires:       cifs-utils
 Requires:       certbot python2-certbot-apache
+%{?el7:Requires: python2-certbot-apache}
+%{?el8:Requires: python3-certbot-apache}
 Requires:       nodejs
 
 %description
