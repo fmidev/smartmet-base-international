@@ -1,7 +1,7 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        19.11.4
+Version:        22.3.13
 Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
@@ -358,6 +358,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Sun Mar13 2022 Mikko Rauhala <mikko.rauhala@fmi.fi> 22.3.13-1.el8.fmi
+- add epel-release
 * Mon Nov 4 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.11.4-1.el7.fmi
 - add nodejs
 * Wed Oct 30 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.10.30-2.el7.fmi
