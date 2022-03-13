@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        22.3.13
-Release:        3%{?dist}.fmi
+Release:        4%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -75,7 +75,7 @@ Requires:	whois
 %{?el7:Requires: yum-cron}
 Requires:       net-tools
 Requires:       cifs-utils
-Requires:       certbot python2-certbot-apache
+Requires:       certbot
 %{?el7:Requires: python2-certbot-apache}
 %{?el8:Requires: python3-certbot-apache}
 Requires:       nodejs
