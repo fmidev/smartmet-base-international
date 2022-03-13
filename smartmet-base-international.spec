@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        22.3.13
-Release:        4%{?dist}.fmi
+Release:        5%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -54,7 +54,8 @@ Requires:	parallel
 Requires:	perl
 Requires:	php
 Requires:	php-gd
-Requires:	policycoreutils-python
+%{?el7:Requires: policycoreutils-python}
+%{?el8:Requires: python3-policycoreutils}
 Requires:	procmail
 Requires:	rsync
 Requires:	samba
