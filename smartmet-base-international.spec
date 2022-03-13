@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        22.3.13
-Release:        1%{?dist}.fmi
+Release:        2%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -46,7 +46,9 @@ Requires:	nfs-utils
 Requires:	lbzip2
 Requires:	libnfsidmap
 Requires:	nano
-Requires:	ntp
+%{?el6:Requires: ntp}
+%{?el7:Requires: ntp}
+%{?el8:Requires: chrony}
 Requires:	openvpn
 Requires:	parallel
 Requires:	perl
@@ -57,6 +59,7 @@ Requires:	procmail
 Requires:	rsync
 Requires:	samba
 Requires:	samba-client
+Requires:	snapd
 Requires:	time
 Requires:	telnet
 Requires:	traceroute
@@ -69,7 +72,7 @@ Requires:	unzip
 Requires:	man
 Requires:	mlocate
 Requires:	whois
-Requires:       yum-cron
+%{?el7:Requires: yum-cron}
 Requires:       net-tools
 Requires:       cifs-utils
 Requires:       certbot python2-certbot-apache
@@ -276,9 +279,10 @@ firewall-cmd --permanent --add-service=mountd
 firewall-cmd --permanent --add-service=rpc-bind
 firewall-cmd --permanent --add-service=nfs
 
+# Setup during install in redhat 8 called chronyd
 # Enable ntpd
-systemctl enable ntpd
-systemctl start ntpd
+#systemctl enable ntpd
+#systemctl start ntpd
 
 # Enable httpd
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/www(/.*)?"
