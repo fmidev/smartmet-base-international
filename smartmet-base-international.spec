@@ -358,7 +358,7 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
-* Sun Mar13 2022 Mikko Rauhala <mikko.rauhala@fmi.fi> 22.3.13-1.el8.fmi
+* Sun Mar 13 2022 Mikko Rauhala <mikko.rauhala@fmi.fi> 22.3.13-1.el8.fmi
 - add epel-release
 * Mon Nov 4 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.11.4-1.el7.fmi
 - add nodejs
