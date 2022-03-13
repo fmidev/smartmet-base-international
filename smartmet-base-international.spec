@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        22.3.13
-Release:        2%{?dist}.fmi
+Release:        3%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
