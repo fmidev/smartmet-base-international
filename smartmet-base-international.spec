@@ -326,6 +326,7 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/httpd/conf.d/smartmet.conf
 %config(noreplace) %{_sysconfdir}/profile.d/smartmet.sh
 %config(noreplace) %{_sysconfdir}/php.d/smartmet.ini
+%config(noreplace) %{_sysconfdir}/fail2ban/jail.local
 %config(noreplace) %{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local
 %config(noreplace) %{smartmetroot}/cnf/httpd.conf
 %config(noreplace) %{smartmetroot}/cnf/smartmet.conf
