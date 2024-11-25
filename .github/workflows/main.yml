@@ -15,15 +15,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: ['rocky8', 'rocky9']
+        os: ['rocky8', 'rocky9', 'centos7']
         include:
           - os: rocky8
             tag: '8'
+            pkg_manager: dnf
           - os: rocky9
             tag: '9'
+            pkg_manager: dnf
+          - os: centos7
+            tag: '7'
+            pkg_manager: yum
     
     container:
-      image: rockylinux:${{ matrix.tag }}
+      image: ${{ matrix.os == 'centos7' && 'centos:7' || format('rockylinux:{0}', matrix.tag) }}
       
     steps:
       - name: Check out repository
@@ -31,7 +36,7 @@ jobs:
         
       - name: Install build dependencies
         run: |
-          dnf -y install \
+          ${{ matrix.pkg_manager }} -y install \
             rpm-build \
             rpmdevtools \
             gcc \
