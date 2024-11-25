@@ -20,19 +20,22 @@ jobs:
           - os: rocky8
             tag: '8'
             pkg_manager: dnf
+            checkout_version: v4
           - os: rocky9
             tag: '9'
             pkg_manager: dnf
+            checkout_version: v4
           - os: centos7
             tag: '7'
             pkg_manager: yum
+            checkout_version: v2
     
     container:
       image: ${{ matrix.os == 'centos7' && 'centos:7' || format('rockylinux:{0}', matrix.tag) }}
       
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@${{ matrix.checkout_version }}
         
       - name: Install build dependencies
         run: |
