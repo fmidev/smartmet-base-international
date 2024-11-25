@@ -1,0 +1,70 @@
+name: Build RPM Packages
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-rpms:
+    name: Build RPM on ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: ['rocky8', 'rocky9']
+        include:
+          - os: rocky8
+            tag: '8'
+          - os: rocky9
+            tag: '9'
+    
+    container:
+      image: rockylinux:${{ matrix.tag }}
+      
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        
+      - name: Install build dependencies
+        run: |
+          dnf -y install \
+            rpm-build \
+            rpmdevtools \
+            gcc \
+            make \
+            rpm-devel \
+            rpmlint \
+            tree
+            
+      - name: Set up RPM build environment
+        run: |
+          mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+          mkdir -p ~/rpmbuild/SOURCES/smartmet-base-international
+          cp ./*.spec ~/rpmbuild/SPECS/
+          
+          # Copy source files to SOURCES directory
+          # Assuming your source files are in the root of the repository
+          # Modify this according to your project structure
+          cp -r ./* ~/rpmbuild/SOURCES/smartmet-base-international
+          
+      - name: Build RPM package
+        run: |
+          cd ~/rpmbuild/SPECS
+          # Replace package.spec with your actual spec file name
+          rpmbuild -ba *.spec
+          
+      - name: List generated RPMs
+        run: |
+          tree ~/rpmbuild/RPMS/
+          tree ~/rpmbuild/SRPMS/
+          
+      - name: Upload RPM artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpms-${{ matrix.os }}
+          path: |
+            ~/rpmbuild/RPMS/
+            ~/rpmbuild/SRPMS/
+          retention-days: 7
