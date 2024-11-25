@@ -2,7 +2,7 @@
 
 Name:           smartmet-base-international
 Version:        24.11.25
-Release:        1%{?dist}.fmi
+Release:        2%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -234,7 +234,13 @@ install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/utcrun %{b
 %post
 # Enable smartmet user to run sudo commands
 gpasswd -a smartmet wheel
+
+# Enable smartmet user to run docker commands
 gpasswd -a smartmet docker
+
+# Enable docker
+systemctl enable docker
+systemctl start docker
 
 # Enable firewalld
 systemctl enable firewalld
@@ -336,6 +342,8 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Mon Nov 25 2024 Mikko Rauhala <mikko.rauhala@fmi.fi> 24.11.25-2.el8.fmi
+- enable docker
 * Mon Nov 25 2024 Mikko Rauhala <mikko.rauhala@fmi.fi> 24.11.25-1.el8.fmi
 - remove ppp
 - add pbzip2
