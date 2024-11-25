@@ -1,12 +1,12 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        22.3.13
-Release:        5%{?dist}.fmi
+Version:        24.11.25
+Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
-URL:            http://www.weatherproof.fi
+URL:            https://github.com/fmidev/smartmet-base-international
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildArch:	noarch
 Obsoletes:	smartmet-base-caribbean
@@ -15,18 +15,6 @@ Obsoletes:	smartmet-base-pacific
 Requires:       smartmet-qdtools
 Requires:	smartmet-qdcontour
 Requires:	smartmet-shapetools
-#Requires:	smartmet-data-meteor
-#Requires:	smartmet-data-synop
-#Requires:	smartmet-data-sounding
-#Requires:	smartmet-share-php
-#Requires:	smartmet-data-metar
-#Requires:	smartmet-data-gfs
-#Requires:	smartmet-data-gem
-#Requires:	smartmet-brainstorm-backend
-#Requires:	smartmet-brainstorm-autocomplete
-#Requires:	smartmet-brainstorm-qengine
-#Requires:	smartmet-brainstorm-timeseries
-
 Requires:	bc
 Requires:	bind-utils
 Requires:	bzip2
@@ -51,12 +39,14 @@ Requires:	nano
 %{?el8:Requires: chrony}
 Requires:	openvpn
 Requires:	parallel
+Requires:       pbzip2
 Requires:	perl
 Requires:	php
 Requires:	php-gd
 %{?el7:Requires: policycoreutils-python}
 %{?el8:Requires: python3-policycoreutils}
 Requires:	procmail
+Requires:       rclone
 Requires:	rsync
 Requires:	samba
 Requires:	samba-client
@@ -106,7 +96,6 @@ mkdir -p %{buildroot}%{_sysconfdir}/profile.d
 mkdir -p %{buildroot}%{_sysconfdir}/yum.repos.d
 mkdir -p %{buildroot}%{_sysconfdir}/httpd/conf.d
 mkdir -p %{buildroot}%{_sysconfdir}/php.d
-mkdir -p %{buildroot}%{_sysconfdir}/ppp/peers
 mkdir -p %{buildroot}%{_sysconfdir}/samba
 mkdir -p %{buildroot}%{_sysconfdir}/fail2ban/action.d
 mkdir -p .%{smartmetroot}/cnf/cron/{cron.d,cron.10min,cron.hourly,cron.daily,cron.weekly,cron.monthly}
@@ -153,23 +142,6 @@ EOF
 cat > %{buildroot}%{_sysconfdir}/httpd/conf.d/smartmet.conf <<EOF
 Include /smartmet/cnf/httpd.conf
 IncludeOptional /smartmet/cnf/httpd/conf.d/*.conf
-EOF
-
-cat > %{buildroot}%{_sysconfdir}/ppp/chap-secrets.fmi << EOF
-smartmet-xx FMI "SmartMetFMI" *
-EOF
-
-cat > %{buildroot}%{_sysconfdir}/ppp/peers/FMI << EOF
-pty "pptp fmigate.rauhala.net --nolaunchpppd"
-lock
-noauth
-nobsdcomp
-nodeflate
-name smartmet-ag
-remotename FMI
-ipparam FMI
-persist
-maxfail 0
 EOF
 
 cat > %{buildroot}%{_sysconfdir}/fail2ban/jail.local <<EOF
@@ -262,6 +234,7 @@ install -m 755 %_topdir/SOURCES/smartmet-base-international/unixtools/utcrun %{b
 %post
 # Enable smartmet user to run sudo commands
 gpasswd -a smartmet wheel
+gpasswd -a smartmet docker
 
 # Enable firewalld
 systemctl enable firewalld
@@ -294,8 +267,8 @@ semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd.conf"
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd/conf.d"
 restorecon -Rv /smartmet/www /smartmet/editor/smartalert /smartmet/cnf/httpd.conf /smartmet/cnf/httpd/conf.d
 setsebool -P httpd_can_network_relay on
-systemctl enable httpd
-systemctl start httpd
+systemctl disable httpd
+systemctl stop httpd
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 
@@ -353,9 +326,6 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/httpd/conf.d/smartmet.conf
 %config(noreplace) %{_sysconfdir}/profile.d/smartmet.sh
 %config(noreplace) %{_sysconfdir}/php.d/smartmet.ini
-%config(noreplace) %{_sysconfdir}/ppp/peers/FMI
-%config(noreplace) %{_sysconfdir}/ppp/chap-secrets.fmi
-%config(noreplace) %{_sysconfdir}/fail2ban/jail.local
 %config(noreplace) %{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local
 %config(noreplace) %{smartmetroot}/cnf/httpd.conf
 %config(noreplace) %{smartmetroot}/cnf/smartmet.conf
@@ -365,6 +335,12 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Mon Nov 25 2024 Mikko Rauhala <mikko.rauhala@fmi.fi> 24.11.25-1.el8.fmi
+- remove ppp
+- add pbzip2
+- disable httpd
+- add smartmet user to group docker
+- clean
 * Sun Mar 13 2022 Mikko Rauhala <mikko.rauhala@fmi.fi> 22.3.13-1.el8.fmi
 - add epel-release
 * Mon Nov 4 2019 Mikko Rauhala <mikko.rauhala@fmi.fi> 19.11.4-1.el7.fmi
