@@ -12,14 +12,15 @@ BuildArch:	noarch
 Obsoletes:	smartmet-base-caribbean
 Obsoletes:	smartmet-base-pacific
 
-Requires:       smartmet-qdtools
+Requires:   smartmet-qdtools
 Requires:	smartmet-qdcontour
 Requires:	smartmet-shapetools
+Requires:   awscli
 Requires:	bc
 Requires:	bind-utils
 Requires:	bzip2
 Requires:	cronie
-Requires:       docker-ce
+Requires:   docker-ce
 Requires:	emacs-nox
 Requires:	epel-release
 Requires:	fail2ban-firewalld
