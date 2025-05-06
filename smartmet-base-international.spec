@@ -111,7 +111,7 @@ mkdir -p .%{smartmetroot}/run/{products,data}
 mkdir -p .%{smartmetroot}/tmp/{data,www}
 mkdir -p .%{smartmetroot}/share/{maps,fonts,coordinates}
 mkdir -p .%{smartmetroot}/share/gis/shapes
-mkdir -p .%{smartmetroot}/cnf/misc
+mkdir -p .%{smartmetroot}/cnf/{misc,palcrypt}
 mkdir -p .%{smartmetroot}/cnf/httpd/conf.d
 
 cat > %{buildroot}%{_sysconfdir}/profile.d/smartmet.sh <<EOF
@@ -207,7 +207,7 @@ qdpoint::timezone = local
 qdpoint::querydata_file = /smartmet/data/gfs/pacific/surface/querydata
 EOF
 
-cat > %{buildroot}%{smartmetroot}/cnf/palcrypt.conf << EOF
+cat > %{buildroot}%{smartmetroot}/cnf/palcrypt/palcrypt.conf << EOF
 -/0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz
 KdJNvMzl_SFY2HtBTQpPIOGiuVkg8Eeb-yxsCwhqL0WUADmnjZ54/aro1XR739f6c
 EOF
@@ -337,7 +337,7 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local
 %config(noreplace) %{smartmetroot}/cnf/httpd.conf
 %config(noreplace) %{smartmetroot}/cnf/smartmet.conf
-%config(noreplace) %{smartmetroot}/cnf/palcrypt.conf
+%config(noreplace) %{smartmetroot}/cnf/palcrypt/palcrypt.conf
 %attr(2775,smartmet,smartmet)  %dir %{smartmetroot}
 %attr(-,smartmet,smartmet) %{smartmetroot}/*
 %attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
