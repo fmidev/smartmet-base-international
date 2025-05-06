@@ -111,7 +111,7 @@ mkdir -p .%{smartmetroot}/run/{products,data}
 mkdir -p .%{smartmetroot}/tmp/{data,www}
 mkdir -p .%{smartmetroot}/share/{maps,fonts,coordinates}
 mkdir -p .%{smartmetroot}/share/gis/shapes
-mkdir -p .%{smartmetroot}/cnf/misc
+mkdir -p .%{smartmetroot}/cnf/{misc,palcrypt}
 mkdir -p .%{smartmetroot}/cnf/httpd/conf.d
 
 cat > %{buildroot}%{_sysconfdir}/profile.d/smartmet.sh <<EOF
