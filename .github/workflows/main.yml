@@ -18,14 +18,14 @@ jobs:
         os: ['rocky8', 'rocky9', 'rocky10']
         include:
           - os: rocky8
-            tag: '8'
+            image: 'rockylinux:8'
           - os: rocky9
-            tag: '9'
+            image: 'rockylinux:9'
           - os: rocky10
-            tag: '10'
-    
+            image: 'rockylinux/rockylinux:10'
+
     container:
-      image: rockylinux:${{ matrix.tag }}
+      image: ${{ matrix.image }}
       
     steps:
       - name: Check out repository
