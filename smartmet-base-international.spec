@@ -66,7 +66,6 @@ Requires:	whois
 %{?el7:Requires: yum-cron}
 Requires:       net-tools
 Requires:       cifs-utils
-Requires:       certbot
 Requires:       nodejs
 
 %description
@@ -304,8 +303,9 @@ rm -rf $RPM_BUILD_ROOT
 * Wed May 06 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.5.6-1.fmi
 - remove httpd / Apache: drop httpd Requires, drop /etc/httpd config drop-in,
   drop /smartmet/cnf/httpd.conf, drop httpd_can_network_relay sebool, drop
-  systemctl disable/stop httpd; drop python*-certbot-apache plugin (base
-  certbot kept). The web server now runs in a container.
+  systemctl disable/stop httpd; drop certbot and python*-certbot-apache
+  (TLS termination happens elsewhere now). The web server now runs in a
+  container.
 - keep semanage fcontext httpd_sys_content_t for /smartmet/www and
   /smartmet/editor/smartalert (containerised web server bind-mounts these)
 - keep http/https firewall rules
