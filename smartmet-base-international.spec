@@ -1,8 +1,8 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        24.11.25
-Release:        2%{?dist}.fmi
+Version:        26.5.6
+Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
 License:        MIT
@@ -28,7 +28,6 @@ Requires:	fail2ban-systemd
 Requires:	ftp
 Requires:	git
 Requires:	htop
-Requires:	httpd
 Requires:	ImageMagick
 #Requires:	mail
 Requires:	nfs-utils
@@ -68,8 +67,6 @@ Requires:	whois
 Requires:       net-tools
 Requires:       cifs-utils
 Requires:       certbot
-%{?el7:Requires: python2-certbot-apache}
-%{?el8:Requires: python3-certbot-apache}
 Requires:       nodejs
 
 %description
@@ -95,7 +92,6 @@ cd $RPM_BUILD_ROOT
 mkdir -p %{buildroot}%{_sysconfdir}/cron.d
 mkdir -p %{buildroot}%{_sysconfdir}/profile.d
 mkdir -p %{buildroot}%{_sysconfdir}/yum.repos.d
-mkdir -p %{buildroot}%{_sysconfdir}/httpd/conf.d
 mkdir -p %{buildroot}%{_sysconfdir}/php.d
 mkdir -p %{buildroot}%{_sysconfdir}/samba
 mkdir -p %{buildroot}%{_sysconfdir}/fail2ban/action.d
@@ -112,7 +108,6 @@ mkdir -p .%{smartmetroot}/tmp/{data,www}
 mkdir -p .%{smartmetroot}/share/{maps,fonts,coordinates}
 mkdir -p .%{smartmetroot}/share/gis/shapes
 mkdir -p .%{smartmetroot}/cnf/misc
-mkdir -p .%{smartmetroot}/cnf/httpd/conf.d
 
 cat > %{buildroot}%{_sysconfdir}/profile.d/smartmet.sh <<EOF
 PATH=\$PATH:/smartmet/bin
@@ -140,11 +135,6 @@ PATH=/bin:/usr/bin:/usr/local/bin:/smartmet/bin
 * * * * * root mkcron > /dev/null 2>&1
 EOF
 
-cat > %{buildroot}%{_sysconfdir}/httpd/conf.d/smartmet.conf <<EOF
-Include /smartmet/cnf/httpd.conf
-IncludeOptional /smartmet/cnf/httpd/conf.d/*.conf
-EOF
-
 cat > %{buildroot}%{_sysconfdir}/fail2ban/jail.local <<EOF
 [DEFAULT]
 findtime  = 5000
@@ -155,34 +145,6 @@ EOF
 cat > %{buildroot}%{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local <<EOF
 [Init]
 bantime = 10000
-EOF
-
-cat > %{buildroot}%{smartmetroot}/cnf/httpd.conf << EOF
-ServerName localhost
-ServerTokens Prod
-Timeout 120
-SendBufferSize 131072
-
-<FilesMatch "\.(inc|cnf|conf|bak|old|php~|pl~)$">
-        Order allow,deny
-        Deny from all
-</FilesMatch>
-
-<Directory "/smartmet/www">
-    Options Indexes FollowSymLinks
-    AllowOverride None
-    Require all granted
-</Directory>
-
-NameVirtualHost *:80
-<VirtualHost *:80>
-	ServerName	smartmetsrv
-	DocumentRoot    /smartmet/www
-	ErrorLog        /var/log/httpd/smartmet-error_log
-	TransferLog     /var/log/httpd/smartmet-access_log
-	ScriptAlias     /cgi-bin/cropper /usr/bin/cropper
-	ScriptAlias     /cgi-bin/cropper_auth /usr/bin/cropper_auth
-</VirtualHost>
 EOF
 
 cat > %{buildroot}%{smartmetroot}/cnf/smartmet.conf << EOF
@@ -267,15 +229,13 @@ firewall-cmd --permanent --add-service=nfs
 #systemctl enable ntpd
 #systemctl start ntpd
 
-# Enable httpd
+# Label web content directories for SELinux. The web server itself runs in
+# a container, but the bind-mounted host paths still need the right context.
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/www(/.*)?"
 semanage fcontext --add --type httpd_sys_content_t "/smartmet/editor/smartalert(/.*)?"
-semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd.conf"
-semanage fcontext --add --type httpd_sys_content_t "/smartmet/cnf/httpd/conf.d"
-restorecon -Rv /smartmet/www /smartmet/editor/smartalert /smartmet/cnf/httpd.conf /smartmet/cnf/httpd/conf.d
-setsebool -P httpd_can_network_relay on
-systemctl disable httpd
-systemctl stop httpd
+restorecon -Rv /smartmet/www /smartmet/editor/smartalert
+
+# Open HTTP/HTTPS in the firewall for the web server container
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-service=https
 
@@ -330,19 +290,26 @@ rm -rf $RPM_BUILD_ROOT
 %files
 %defattr(-,root,root,-)
 %config(noreplace) %{_sysconfdir}/cron.d/smartmet.cron
-%config(noreplace) %{_sysconfdir}/httpd/conf.d/smartmet.conf
 %config(noreplace) %{_sysconfdir}/profile.d/smartmet.sh
 %config(noreplace) %{_sysconfdir}/php.d/smartmet.ini
 %config(noreplace) %{_sysconfdir}/fail2ban/jail.local
 %config(noreplace) %{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local
-%config(noreplace) %{smartmetroot}/cnf/httpd.conf
 %config(noreplace) %{smartmetroot}/cnf/smartmet.conf
 %config(noreplace) %{smartmetroot}/cnf/palcrypt.conf
 %attr(2775,smartmet,smartmet)  %dir %{smartmetroot}
 %attr(-,smartmet,smartmet) %{smartmetroot}/*
-%attr(2775,smartmet,apache)  %dir %{smartmetroot}/tmp/www
+%attr(2775,smartmet,smartmet)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Wed May 06 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.5.6-1.fmi
+- remove httpd / Apache: drop httpd Requires, drop /etc/httpd config drop-in,
+  drop /smartmet/cnf/httpd.conf, drop httpd_can_network_relay sebool, drop
+  systemctl disable/stop httpd; drop python*-certbot-apache plugin (base
+  certbot kept). The web server now runs in a container.
+- keep semanage fcontext httpd_sys_content_t for /smartmet/www and
+  /smartmet/editor/smartalert (containerised web server bind-mounts these)
+- keep http/https firewall rules
+- change /smartmet/tmp/www group from apache to smartmet
 * Mon Nov 25 2024 Mikko Rauhala <mikko.rauhala@fmi.fi> 24.11.25-2.el8.fmi
 - enable docker
 * Mon Nov 25 2024 Mikko Rauhala <mikko.rauhala@fmi.fi> 24.11.25-1.el8.fmi
