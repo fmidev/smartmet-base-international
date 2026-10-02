@@ -1,7 +1,7 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        26.5.6
+Version:        26.10.2
 Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
@@ -57,11 +57,15 @@ Requires:	traceroute
 Requires:	vsftpd
 Requires:	wget
 Requires:	wgrib2
-Requires:	xinetd
+%{?el8:Requires: xinetd}
 Requires:	zip
 Requires:	unzip
 Requires:	man
+%if 0%{?rhel} >= 10
+Requires:	plocate
+%else
 Requires:	mlocate
+%endif
 Requires:	whois
 %{?el7:Requires: yum-cron}
 Requires:       net-tools
@@ -300,6 +304,10 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,smartmet)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Fri Oct 02 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.10.2-1.fmi
+- fix installation on RHEL 9/10: require xinetd only on el8 (removed from
+  RHEL 9+, and nothing here configures it); require plocate instead of
+  mlocate on el10+ (mlocate was replaced by plocate in RHEL 10)
 * Wed May 06 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.5.6-1.fmi
 - remove httpd / Apache: drop httpd Requires, drop /etc/httpd config drop-in,
   drop /smartmet/cnf/httpd.conf, drop httpd_can_network_relay sebool, drop
