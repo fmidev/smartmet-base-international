@@ -5,8 +5,9 @@ server. Pulls in the SmartMet runtime (`smartmet-qdtools`, `smartmet-qdcontour`,
 `smartmet-shapetools`), the system services SmartMet relies on (PostgreSQL,
 Samba, NFS, Docker, fail2ban, firewalld, …), creates the `smartmet` and `gts`
 system users, lays out `/smartmet/{bin,cnf,data,run,share,tmp,www,logs,…}`,
-drops in cron entries, and configures firewalld + SELinux so a containerised
-SmartMet web frontend can serve `/smartmet/www`.
+drops in cron entries, limits Docker container logs, and configures
+firewalld + SELinux so a containerised SmartMet web frontend can serve
+`/smartmet/www`.
 
 ## Supported OS
 
@@ -44,6 +45,30 @@ The `smartmet-install` script enables the FMI smartmet-open repo and
   `httpd_sys_content_t` so a containerised web server can bind-mount them
 - Sets `samba_export_all_rw=1` and writes a default `/etc/samba/smb.conf`
   exposing `/smartmet/editor` as the `[smartmet]` share
+
+## Docker container logs
+
+Docker keeps container logs forever by default, and a busy container can fill
+the root disk (`/var/lib/docker/containers/*/*-json.log`). The package installs
+`/etc/docker/daemon.json`, which rotates them at 50 MB and keeps 5 files per
+container (250 MB at most):
+
+```json
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "50m", "max-file": "5" }
+}
+```
+
+- Docker reads the file when it starts, and the limits apply only to
+  containers **created** after that. On a host that already runs containers,
+  restart Docker, then recreate the containers (`docker compose up -d
+  --force-recreate`, or *Update the stack* in Portainer). Check a container
+  with `docker inspect -f '{{.HostConfig.LogConfig}}' <name>`.
+- A `daemon.json` that already exists is kept; the packaged one is saved as
+  `/etc/docker/daemon.json.rpmnew`. Merge the `log-*` keys into it by hand.
+- Logs are not rotated with logrotate: Docker writes and tracks the files
+  itself, and under SELinux they carry `container_var_lib_t`, not a log label.
 
 ## Release process
 
