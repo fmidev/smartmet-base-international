@@ -1,7 +1,7 @@
 %define smartmetroot /smartmet
 
 Name:           smartmet-base-international
-Version:        26.10.2
+Version:        26.10.26
 Release:        1%{?dist}.fmi
 Summary:        SmartMet basic system
 Group:          System Environment/Base
@@ -98,6 +98,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/yum.repos.d
 mkdir -p %{buildroot}%{_sysconfdir}/php.d
 mkdir -p %{buildroot}%{_sysconfdir}/samba
 mkdir -p %{buildroot}%{_sysconfdir}/fail2ban/action.d
+mkdir -p %{buildroot}%{_sysconfdir}/docker
 mkdir -p .%{smartmetroot}/cnf/cron/{cron.d,cron.10min,cron.hourly,cron.daily,cron.weekly,cron.monthly}
 mkdir -p .%{smartmetroot}/cnf/triggers.d/{quick,lazy}
 mkdir -p .%{smartmetroot}/editor/{in,out,satellite,smartalert}
@@ -148,6 +149,18 @@ EOF
 cat > %{buildroot}%{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local <<EOF
 [Init]
 bantime = 10000
+EOF
+
+# Rotate container logs: Docker keeps them forever by default. Applies to
+# containers created after dockerd has (re)started with this file.
+cat > %{buildroot}%{_sysconfdir}/docker/daemon.json <<EOF
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "5"
+  }
+}
 EOF
 
 cat > %{buildroot}%{smartmetroot}/cnf/smartmet.conf << EOF
@@ -297,6 +310,7 @@ rm -rf $RPM_BUILD_ROOT
 %config(noreplace) %{_sysconfdir}/php.d/smartmet.ini
 %config(noreplace) %{_sysconfdir}/fail2ban/jail.local
 %config(noreplace) %{_sysconfdir}/fail2ban/action.d/firewallcmd-ipset.local
+%config(noreplace) %{_sysconfdir}/docker/daemon.json
 %config(noreplace) %{smartmetroot}/cnf/smartmet.conf
 %config(noreplace) %{smartmetroot}/cnf/palcrypt.conf
 %attr(2775,smartmet,smartmet)  %dir %{smartmetroot}
@@ -304,6 +318,11 @@ rm -rf $RPM_BUILD_ROOT
 %attr(2775,smartmet,smartmet)  %dir %{smartmetroot}/tmp/www
 
 %changelog
+* Mon Oct 26 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.10.26-1.fmi
+- add /etc/docker/daemon.json: json-file container logs rotate at 50 MB,
+  5 files per container (Docker keeps them forever by default). Applies to
+  containers created after dockerd restarts; an existing daemon.json is kept
+  and the packaged one is saved as daemon.json.rpmnew
 * Fri Oct 02 2026 Mikko Rauhala <mikko.rauhala@fmi.fi> 26.10.2-1.fmi
 - fix installation on RHEL 9/10: require xinetd only on el8 (removed from
   RHEL 9+, and nothing here configures it); require plocate instead of
